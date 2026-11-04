@@ -34,18 +34,46 @@ The command returns a real-video probability and verdict, and saves a Grad-CAM h
 
 Use the [quickstart notebook](notebooks/quickstart.ipynb) for Python and Colab examples. [Hugging Face](https://huggingface.co/mertkayacs/xdfdet) and [Kaggle](https://www.kaggle.com/models/mertilovski/xdfdet) host the eight EfficientNet-B4 models.
 
-### Windows PowerShell
+### Download and install on your computer
 
-From the repository folder, create a virtual environment and install the project:
+You need Git and 64-bit Python 3.11 or 3.12. The commands below download the source, create an isolated Python environment, install xdfdet, and run a prediction. A training dataset is not needed. The first prediction downloads the model weights from Hugging Face.
+
+Clone the repository and enter its folder:
+
+```sh
+git clone https://github.com/mertkayacs/xdfdet.git
+cd xdfdet
+```
+
+#### Windows PowerShell
 
 ```powershell
 py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\xdfdet.exe predict .\video.mp4 --gradcam .\cam.png
 ```
 
-Replace `.\video.mp4` with the video to analyze. The first prediction downloads the selected model weights from Hugging Face.
-TensorFlow on native Windows uses the CPU; use WSL2 if NVIDIA GPU inference is required.
+#### macOS or Linux
+
+```sh
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+xdfdet predict ./video.mp4 --gradcam ./cam.png
+```
+
+Replace `video.mp4` with the path to the video to analyze. The command prints a real-video probability and verdict, and saves the Grad-CAM heatmap to `cam.png`. You can choose a different released detector with `--model`, for example `--model baseline`.
+
+To run the test suite, install the test dependencies and run pytest:
+
+```sh
+python -m pip install -e ".[test]"
+python -m pytest
+```
+
+TensorFlow on native Windows uses the CPU; use WSL2 if NVIDIA GPU inference is required. For the hosted web app setup, including the frontend, inference API, and Supabase, see [Web app deployment](#web-app-deployment).
 
 ### Web app deployment
 
