@@ -20,7 +20,7 @@ xdfdet checks whether a face video is real or manipulated and produces a heatmap
 
 ## Run a detector
 
-Requires Python 3.10 to 3.12. Model weights download from Hugging Face on first use; a training dataset is not needed for prediction.
+Requires Python 3.11 or 3.12. Model weights download from Hugging Face on first use; a training dataset is not needed for prediction.
 
 ```sh
 pip install git+https://github.com/mertkayacs/xdfdet && xdfdet predict video.mp4 --gradcam cam.png
@@ -29,6 +29,88 @@ pip install git+https://github.com/mertkayacs/xdfdet && xdfdet predict video.mp4
 The command returns a real-video probability and verdict, and saves a Grad-CAM heatmap to `cam.png`. Scores of 0.5 or higher are reported as real; lower scores are reported as fake. Grad-CAM shows which image regions influence a prediction; it does not prove that the video is authentic or explain the cause of a manipulation.
 
 Use the [quickstart notebook](notebooks/quickstart.ipynb) for Python and Colab examples. [Hugging Face](https://huggingface.co/mertkayacs/xdfdet) and [Kaggle](https://www.kaggle.com/models/mertilovski/xdfdet) host the eight EfficientNet-B4 models.
+
+### Windows PowerShell
+
+From the repository folder, create a virtual environment and install the project:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\xdfdet.exe predict .\video.mp4 --gradcam .\cam.png
+```
+
+Replace `.\video.mp4` with the video to analyze. The first prediction downloads the selected model weights from Hugging Face.
+TensorFlow on native Windows uses the CPU; use WSL2 if NVIDIA GPU inference is required.
+
+### Web app deployment
+
+The web app uses three services because Vercel is suitable for the static frontend, but not for running this large TensorFlow video-inference workload:
+
+| Component | Host | Purpose |
+|---|---|---|
+| Frontend | Vercel | Static `Deep Fake` web app |
+| Model API | Railway or Render Docker service | Python/TensorFlow inference |
+| Accounts and saved data | Supabase | Email sign-in, Postgres results, private video storage |
+
+This project and its weights are for non-commercial research use; check the model/data licenses before deployment.
+
+#### 1. Create a Supabase project
+
+1. Create a Supabase project and choose the region where you want the data stored.
+2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql). This creates the `public.analyses` table, user-scoped row security, and a private `deepfake-videos` bucket.
+3. In **Project Settings → API**, copy the project URL, public anon key, and service-role key. The service-role key is a server secret; never put it in frontend code, Vercel variables, Postman collections, or Git.
+4. In **Authentication → URL Configuration**, add your Vercel domain to the allowed redirect URLs. Configure email confirmation and SMTP according to your needs.
+5. Since this is intended for you and your friend, consider disabling public sign-ups after creating/inviting both accounts so strangers cannot create accounts and consume inference resources.
+
+#### 2. Deploy the inference backend
+
+Fork this repository to your GitHub account and make sure your changes are committed and pushed to that fork. Do not push deployment changes to the upstream author's repository.
+
+Create a Railway or Render service from your fork, select Dockerfile deployment, and use the repository root as the build context. Set these backend environment variables in the hosting dashboard:
+
+| Variable | Value |
+|---|---|
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only service-role secret |
+| `SUPABASE_REGION` | The region shown in your Supabase project settings (for display in the app) |
+| `XDFDET_CORS_ORIGINS` | Your exact Vercel origin, e.g. `https://your-app.vercel.app` |
+
+The container binds to the host-provided `PORT`. The first inference downloads model weights from Hugging Face. For faster restarts, attach a persistent backend disk at `/data`, which holds only the Hugging Face model cache. The detector runs on CPU in this Docker setup; allow several GB of RAM for TensorFlow and video processing.
+
+#### 3. Deploy the frontend to Vercel
+
+Import your fork in Vercel and set the project root to the repository root. Add these build environment variables:
+
+| Variable | Value |
+|---|---|
+| `XDFDET_API_URL` | The public HTTPS URL of the Railway/Render backend |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_ANON_KEY` | Your Supabase public anon key (safe for browser use with the included row-security policies) |
+
+Vercel builds the static site with `npm run build`. After the first Vercel domain is assigned, set that exact origin in the backend's `XDFDET_CORS_ORIGINS`, then redeploy/restart the backend. `SUPABASE_SERVICE_ROLE_KEY` belongs only in the backend host's secret environment, never in the Vercel project.
+
+Open the Vercel site, select **Connection**, and create an account. If email confirmation is on, confirm the email before signing in. The friend can create their own account; each account only sees and deletes its own analysis history.
+
+#### Where data is stored
+
+- Uploaded videos and requested Grad-CAM images are stored in the **private Supabase Storage bucket** `deepfake-videos`.
+- Prediction results and facial-region scores are stored in the Supabase Postgres table **`public.analyses`**.
+- The signed-in history page displays the configured Supabase project region, bucket, and table. The project's actual region is also visible in the Supabase dashboard.
+- The retention setting is **until manually deleted**. Use **History → Delete** to remove an analysis and its stored video/heatmap from the live bucket. Private download links expire after ten minutes; provider-managed backups may have a separate retention period.
+- The inference server writes a temporary upload under its temporary directory and deletes it after processing; it does not keep a second copy of user videos. Production traffic should use HTTPS. The optional `/data` disk stores only downloaded Hugging Face model weights.
+- Supabase service-role credentials are server-side only. Database and bucket policies are scoped to each account; never expose the service-role key.
+
+#### API endpoints
+
+- `GET /health` — API and storage configuration status.
+- `GET /models` — released model names.
+- `GET /storage-info` — authenticated storage provider, region, bucket, table, and retention.
+- `POST /predict` — authenticated multipart upload (`file`, optional `model`, optional `include_gradcam`); stores the result for that account.
+- `GET /history?offset=0&limit=50` — authenticated, paginated account history with ten-minute signed video/heatmap links.
+- `DELETE /history/{analysis_id}` — authenticated deletion of that account's saved result and stored objects.
+
+Import [`postman/xdfdet.postman_collection.json`](postman/xdfdet.postman_collection.json) to test the API. Sign in through the web app first and use a Supabase Auth access token as the Postman `accessToken` variable.
 
 <details>
 <summary><b>Example output and Python usage</b></summary>

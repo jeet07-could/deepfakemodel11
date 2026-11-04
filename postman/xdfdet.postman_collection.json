@@ -1,0 +1,110 @@
+{
+  "info": {
+    "_postman_id": "d2749ac1-3cc2-4c54-aa68-0def4f67f8a5",
+    "name": "xdfdet Deepfake Detection API",
+    "description": "Sign in to Supabase Auth to obtain an access token, then set accessToken and serverUrl. Use the Deep Fake frontend for account creation and history management.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "serverUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{serverUrl}}/health",
+          "host": [
+            "{{serverUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Returns {\"status\":\"ok\"} when the API server is reachable."
+      },
+      "response": []
+    },
+    {
+      "name": "Predict video",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text",
+            "description": "Supabase Auth bearer token for your signed-in account."
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            },
+            {
+              "key": "model",
+              "value": "aug-cutout-black",
+              "type": "text"
+            },
+            {
+              "key": "include_gradcam",
+              "value": "false",
+              "type": "text",
+              "description": "Set to true to include a Grad-CAM PNG data URL in the response."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{serverUrl}}/predict",
+          "host": [
+            "{{serverUrl}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Select a video in the file field. The response includes model, real_probability, and verdict."
+      },
+      "response": []
+    },
+    {
+      "name": "List my saved analyses",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{serverUrl}}/history",
+          "host": [
+            "{{serverUrl}}"
+          ],
+          "path": [
+            "history"
+          ]
+        },
+        "description": "Lists your account's saved predictions. Private video links expire after ten minutes."
+      },
+      "response": []
+    }
+  ]
+}

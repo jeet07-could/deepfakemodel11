@@ -20,28 +20,13 @@ def _splits(args):
 
 
 def cmd_predict(args):
-    import numpy as np
+    from .inference import predict_video
 
-    from .explain import overlay, region_scores, video_gradcam
-    from .landmarks import landmarks
-    from .model import load_model, video_score
-    from .video import crop_faces, frame_indices, normalize
-
-    crops = crop_faces(args.video)
-    frames = [crops[i] for i in frame_indices(len(crops))]
-    seq = np.stack([normalize(f) for f in frames])
-    model = load_model(args.model)
-    score = video_score(model, seq)
-    out = {"video": str(args.video), "model": args.model, "real_probability": round(score, 4),
-           "verdict": "real" if score >= 0.5 else "fake"}
+    out, gradcam_image = predict_video(args.video, args.model, include_gradcam=bool(args.gradcam))
+    out["video"] = str(args.video)
     if args.gradcam:
         import cv2
-        cam = video_gradcam(model, seq)
-        mid = frames[len(frames) // 2]
-        cv2.imwrite(str(args.gradcam), cv2.cvtColor(overlay(mid, cam), cv2.COLOR_RGB2BGR))
-        points = landmarks(mid)
-        if points is not None:
-            out["regions"] = {k: round(v, 1) for k, v in region_scores(cam, points).items()}
+        cv2.imwrite(str(args.gradcam), cv2.cvtColor(gradcam_image, cv2.COLOR_RGB2BGR))
         out["gradcam"] = str(args.gradcam)
     print(json.dumps(out, indent=2))
 
