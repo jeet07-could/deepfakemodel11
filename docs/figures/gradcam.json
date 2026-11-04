@@ -1,0 +1,54 @@
+{
+  "baseline": {
+    "real_probability": 0.9947,
+    "regions": {
+      "jaw": 44.3,
+      "left_eyebrow": 37.6,
+      "right_eyebrow": 38.2,
+      "nose": 43.4,
+      "left_eye": 33.9,
+      "right_eye": 41.2,
+      "outer_mouth": 47.0,
+      "inner_mouth": 46.9
+    }
+  },
+  "aug-standard": {
+    "real_probability": 0.9999,
+    "regions": {
+      "jaw": 62.1,
+      "left_eyebrow": 84.1,
+      "right_eyebrow": 73.9,
+      "nose": 75.3,
+      "left_eye": 84.1,
+      "right_eye": 77.7,
+      "outer_mouth": 55.0,
+      "inner_mouth": 55.9
+    }
+  },
+  "cutout-black": {
+    "real_probability": 0.7315,
+    "regions": {
+      "jaw": 1.0,
+      "left_eyebrow": 6.0,
+      "right_eyebrow": 0.0,
+      "nose": 0.9,
+      "left_eye": 7.3,
+      "right_eye": 0.0,
+      "outer_mouth": 0.0,
+      "inner_mouth": 0.0
+    }
+  },
+  "aug-cutout-black": {
+    "real_probability": 0.9999,
+    "regions": {
+      "jaw": 55.2,
+      "left_eyebrow": 74.4,
+      "right_eyebrow": 55.0,
+      "nose": 66.5,
+      "left_eye": 79.2,
+      "right_eye": 62.4,
+      "outer_mouth": 47.6,
+      "inner_mouth": 48.6
+    }
+  }
+}

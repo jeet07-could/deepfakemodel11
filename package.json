@@ -1,0 +1,7 @@
+{
+  "name": "deep-fake-frontend",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-vercel.mjs"
+  }
+}

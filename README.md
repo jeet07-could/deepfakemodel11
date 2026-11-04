@@ -1,2 +1,303 @@
-# deepfakemodel11
-deepfake model used to get the ai percentage score 
+# Deep Fake
+
+Deepfake video detection app powered by xdfdet.
+
+<p align="center"><img src="assets/banner.webp" alt="xdfdet. Free and open source under the MIT license." width="1200"></p>
+
+<p align="center">
+  <a href="https://github.com/mertkayacs/xdfdet"><img src="https://img.shields.io/github/stars/mertkayacs/xdfdet?style=flat&logo=github" alt="GitHub stars"></a>
+  <a href="https://huggingface.co/mertkayacs/xdfdet"><img src="https://img.shields.io/badge/HF%20downloads%20(2026--10--15)-727-725114?style=flat&logo=huggingface" alt="Hugging Face downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/code%20license-MIT-0F6B66.svg" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/free%20and%20open%20source-yes-0F6B66.svg" alt="free and open source">
+  <a href="https://doi.org/10.5281/zenodo.18998566"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.18998566-blue?style=flat" alt="thesis DOI"></a>
+</p>
+
+xdfdet is free and open source under the MIT license.
+
+<p align="center"><b>Eight EfficientNet-B4 models, Grad-CAM heatmaps and facial-region analysis for deepfake video detection, from an MSc thesis and a UBMK 2026 study.</b></p>
+
+xdfdet checks whether a face video is real or manipulated and produces a heatmap of the regions behind its prediction. The study asks how training choices change both detection quality and the evidence a reviewer can inspect.
+
+<img src="https://raw.githubusercontent.com/mertkayacs/xdfdet/main/docs/figures/strip-gradcam.webp" width="520" alt="Grad-CAM heatmaps of four training setups on the same real portrait: baseline, augmentation, cutout, and augmentation with black-fill cutout">
+
+[Read the study](https://xdfdet.mertkayacs.com) or try one of the eight released detectors below.
+
+## Run a detector
+
+Requires Python 3.11 or 3.12. Model weights download from Hugging Face on first use; a training dataset is not needed for prediction.
+
+```sh
+pip install git+https://github.com/mertkayacs/xdfdet && xdfdet predict video.mp4 --gradcam cam.png
+```
+
+The command returns a real-video probability and verdict, and saves a Grad-CAM heatmap to `cam.png`. Scores of 0.5 or higher are reported as real; lower scores are reported as fake. Grad-CAM shows which image regions influence a prediction; it does not prove that the video is authentic or explain the cause of a manipulation.
+
+Use the [quickstart notebook](notebooks/quickstart.ipynb) for Python and Colab examples. [Hugging Face](https://huggingface.co/mertkayacs/xdfdet) and [Kaggle](https://www.kaggle.com/models/mertilovski/xdfdet) host the eight EfficientNet-B4 models.
+
+### Windows PowerShell
+
+From the repository folder, create a virtual environment and install the project:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\xdfdet.exe predict .\video.mp4 --gradcam .\cam.png
+```
+
+Replace `.\video.mp4` with the video to analyze. The first prediction downloads the selected model weights from Hugging Face.
+TensorFlow on native Windows uses the CPU; use WSL2 if NVIDIA GPU inference is required.
+
+### Web app deployment
+
+The web app uses three services because Vercel is suitable for the static frontend, but not for running this large TensorFlow video-inference workload:
+
+| Component | Host | Purpose |
+|---|---|---|
+| Frontend | Vercel | Static `Deep Fake` web app |
+| Model API | Railway or Render Docker service | Python/TensorFlow inference |
+| Accounts and saved data | Supabase | Email sign-in, Postgres results, private video storage |
+
+This project and its weights are for non-commercial research use; check the model/data licenses before deployment.
+
+#### 1. Create a Supabase project
+
+1. Create a Supabase project and choose the region where you want the data stored.
+2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql). This creates the `public.analyses` table, user-scoped row security, and a private `deepfake-videos` bucket.
+3. In **Project Settings → API**, copy the project URL, public anon key, and service-role key. The service-role key is a server secret; never put it in frontend code, Vercel variables, Postman collections, or Git.
+4. In **Authentication → URL Configuration**, add your Vercel domain to the allowed redirect URLs. Configure email confirmation and SMTP according to your needs.
+5. Since this is intended for you and your friend, consider disabling public sign-ups after creating/inviting both accounts so strangers cannot create accounts and consume inference resources.
+
+#### 2. Deploy the inference backend
+
+Use a GitHub repository you own and make sure the deployment files are committed to the branch you plan to deploy. Do not push deployment changes to the upstream author's repository.
+
+Create a Railway or Render service from your repository and select the deployment branch. Choose Dockerfile deployment and use the repository root as the build context. Set these backend environment variables in the hosting dashboard:
+
+| Variable | Value |
+|---|---|
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only service-role secret |
+| `SUPABASE_REGION` | The region shown in your Supabase project settings (for display in the app) |
+| `XDFDET_CORS_ORIGINS` | Your exact Vercel origin, e.g. `https://your-app.vercel.app` |
+
+The container binds to the host-provided `PORT`. The first inference downloads model weights from Hugging Face. For faster restarts, attach a persistent backend disk at `/data`, which holds only the Hugging Face model cache. The detector runs on CPU in this Docker setup; allow several GB of RAM for TensorFlow and video processing.
+
+#### 3. Deploy the frontend to Vercel
+
+Import your repository in Vercel, select the deployment branch, and set the project root to the repository root. Add these build environment variables:
+
+| Variable | Value |
+|---|---|
+| `XDFDET_API_URL` | The public HTTPS URL of the Railway/Render backend |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_ANON_KEY` | Your Supabase public anon key (safe for browser use with the included row-security policies) |
+
+Vercel builds the static site with `npm run build`. After the first Vercel domain is assigned, set that exact origin in the backend's `XDFDET_CORS_ORIGINS`, then redeploy/restart the backend. `SUPABASE_SERVICE_ROLE_KEY` belongs only in the backend host's secret environment, never in the Vercel project.
+
+Open the Vercel site, select **Connection**, and create an account. If email confirmation is on, confirm the email before signing in. The friend can create their own account; each account only sees and deletes its own analysis history.
+
+#### Where data is stored
+
+- Uploaded videos and requested Grad-CAM images are stored in the **private Supabase Storage bucket** `deepfake-videos`.
+- Prediction results and facial-region scores are stored in the Supabase Postgres table **`public.analyses`**.
+- The signed-in history page displays the configured Supabase project region, bucket, and table. The project's actual region is also visible in the Supabase dashboard.
+- The retention setting is **until manually deleted**. Use **History → Delete** to remove an analysis and its stored video/heatmap from the live bucket. Private download links expire after ten minutes; provider-managed backups may have a separate retention period.
+- The inference server writes a temporary upload under its temporary directory and deletes it after processing; it does not keep a second copy of user videos. Production traffic should use HTTPS. The optional `/data` disk stores only downloaded Hugging Face model weights.
+- Supabase service-role credentials are server-side only. Database and bucket policies are scoped to each account; never expose the service-role key.
+
+#### API endpoints
+
+- `GET /health` — API and storage configuration status.
+- `GET /models` — released model names.
+- `GET /storage-info` — authenticated storage provider, region, bucket, table, and retention.
+- `POST /predict` — authenticated multipart upload (`file`, optional `model`, optional `include_gradcam`); stores the result for that account.
+- `GET /history?offset=0&limit=50` — authenticated, paginated account history with ten-minute signed video/heatmap links.
+- `DELETE /history/{analysis_id}` — authenticated deletion of that account's saved result and stored objects.
+
+Import [`postman/xdfdet.postman_collection.json`](postman/xdfdet.postman_collection.json) to test the API. Sign in through the web app first and use a Supabase Auth access token as the Postman `accessToken` variable.
+
+<details>
+<summary><b>Example output and Python usage</b></summary>
+
+For the portrait used in the figures, the released `aug-cutout-black` model produced this output:
+
+```json
+{
+  "model": "aug-cutout-black",
+  "real_probability": 0.9999,
+  "verdict": "real",
+  "regions": {
+    "jaw": 55.2,
+    "left_eyebrow": 74.4,
+    "right_eyebrow": 55.0,
+    "nose": 66.5,
+    "left_eye": 79.2,
+    "right_eye": 62.4,
+    "outer_mouth": 47.6,
+    "inner_mouth": 48.6
+  },
+  "gradcam": "cam.png"
+}
+```
+
+The region values are mean Grad-CAM activation from 0 to 100. Load a released Keras model directly in Python with:
+
+```python
+import xdfdet
+
+model = xdfdet.load_model("aug-cutout-black")
+```
+
+</details>
+
+## Method
+
+1. **Face preparation.** The study pairs 1,000 real FaceForensics++ videos with 1,000 manipulated copies, rotating through FaceSwap, Face2Face, FaceShifter and Deepfakes. MTCNN aligns and crops 32 frames to 224 x 224 pixels. Each model input uses 12 frames.
+2. **Training settings.** Nine EfficientNet-B4 configurations vary Albumentations transforms and cutout. SSIM selects a 2% to 5% facial polygon for fake-frame cutout. Real frames receive a star-shaped cutout with the same fill, and each cutout is applied with probability 0.5.
+3. **Video prediction.** EfficientNet-B4 scores the 12 frames independently. Their mean is the video-level real probability used for the loss and verdict.
+4. **Explanation.** Grad-CAM is averaged across three frames and measured in eight regions derived from 68 facial landmarks. `xdfdet analyze` reports those values separately for true positives, true negatives, false positives and false negatives.
+
+The exact settings are in [`src/xdfdet/config.py`](src/xdfdet/config.py), and [`scripts/make_figures.py`](scripts/make_figures.py) rebuilds the package figures.
+
+## Results
+
+<img src="https://raw.githubusercontent.com/mertkayacs/xdfdet/main/docs/figures/pair-data.webp" width="620" alt="A real FaceForensics++ video frame next to its manipulated version">
+
+<img src="https://raw.githubusercontent.com/mertkayacs/xdfdet/main/docs/figures/pair-cutout.webp" width="620" alt="Training-time cutout: a black-filled region on a fake frame and a small star-shaped patch on a real frame">
+
+<img src="https://raw.githubusercontent.com/mertkayacs/xdfdet/main/docs/figures/pair-explain.webp" width="620" alt="Grad-CAM heatmap of the highest-AUC setup next to the eight facial regions used to measure attention">
+
+In the paper, augmentation with black-fill cutout reached **0.8971 AUC**, compared with **0.8678 for the baseline EfficientNet-B4**. AUC measures how well a detector ranks real and fake videos; higher is better. These are means over three runs. The released checkpoint's AUC is **0.8981**, a separate single-run result.
+
+The four metrics do not select the same configuration. A ranking score alone does not describe confidence quality or the facial regions used for a prediction.
+
+<details>
+<summary><b>Full results table</b></summary>
+
+AUC, F1, Brier and LogLoss on the FaceForensics++ test split. **Paper** is the mean ± std over three runs (Table II). **Released** is the single run whose weights are published, measured in its original notebook.
+
+| Model | Paper AUC | Paper F1 | Paper Brier | Paper LogLoss | Released AUC | Released F1 | Released Brier | Released LogLoss |
+|---|---|---|---|---|---|---|---|---|
+| `baseline` | 0.8678 ± 0.0044 | 0.7780 ± 0.0065 | 0.1524 ± 0.0013 | 0.4827 ± 0.0069 | 0.8684 | 0.7781 | 0.1523 | 0.4827 |
+| `aug-standard` | 0.8610 ± 0.0051 | 0.7955 ± 0.0084 | 0.1572 ± 0.0010 | 0.5719 ± 0.0084 | 0.8616 | 0.8025 | 0.1576 | 0.5719 |
+| `aug-intense` | 0.8718 ± 0.0043 | 0.7932 ± 0.0077 | 0.1431 ± 0.0008 | 0.5288 ± 0.0081 | not released | | | |
+| `cutout-random` | 0.8711 ± 0.0051 | 0.7769 ± 0.0069 | 0.1524 ± 0.0012 | 0.5241 ± 0.0078 | 0.8642 | 0.7774 | 0.1526 | 0.5241 |
+| `cutout-black` | 0.8666 ± 0.0043 | 0.7912 ± 0.0077 | 0.1537 ± 0.0009 | 0.4989 ± 0.0074 | 0.8669 | 0.7911 | 0.1537 | 0.4989 |
+| `cutout-white` | 0.8639 ± 0.0047 | 0.7704 ± 0.0074 | 0.1462 ± 0.0011 | 0.5244 ± 0.0076 | 0.8700 | 0.7703 | 0.1463 | 0.5244 |
+| `aug-cutout-random` | 0.8837 ± 0.0072 | 0.7950 ± 0.0098 | 0.1450 ± 0.0011 | **0.4656 ± 0.0067** | 0.8820 | 0.7950 | 0.1451 | 0.4656 |
+| `aug-cutout-black` | **0.8971 ± 0.0064** | **0.8429 ± 0.0101** | **0.1242 ± 0.0009** | 0.4710 ± 0.0063 | 0.8981 | 0.8431 | 0.1247 | 0.4710 |
+| `aug-cutout-white` | 0.8734 ± 0.0061 | 0.7951 ± 0.0095 | 0.1455 ± 0.0012 | 0.4761 ± 0.0071 | 0.8734 | 0.7883 | 0.1451 | 0.4761 |
+
+The nine settings:
+
+| Augmentation ↓ · Cutout → | none | random fill | black fill | white fill |
+|---|---|---|---|---|
+| none | `baseline` | | | |
+| flips only | | `cutout-random` | `cutout-black` | `cutout-white` |
+| standard | `aug-standard` | `aug-cutout-random` | `aug-cutout-black` | `aug-cutout-white` |
+| intense | `aug-intense` | | | |
+
+Data, model, optimizer and training schedule are the same in every setting. The exact probabilities are in [`src/xdfdet/config.py`](src/xdfdet/config.py).
+
+</details>
+
+## Models
+
+Eight trained detectors are available on [Hugging Face](https://huggingface.co/mertkayacs/xdfdet) and [Kaggle](https://www.kaggle.com/models/mertilovski/xdfdet), with one `.keras` file for each released configuration in the results table. Load one with `xdfdet.load_model(name)` or select it from the CLI with `--model`.
+
+The ninth configuration, `aug-intense`, has no released checkpoint because its original file was overwritten by a later run. Its paper result remains in the table for completeness.
+
+## Limits
+
+On 398 labelled videos from the separate Deepfake Detection Challenge dataset (DFDC), the released models reached AUC 0.60 to 0.66, below their FaceForensics++ scores. At the 0.5 decision threshold, they detected 15% to 36% of the fakes. See the [DFDC evaluation notebook](https://www.kaggle.com/code/mertilovski/xdfdet-on-dfdc) for that run.
+
+The original configurations used different random train/test splits. Their results are not a paired comparison on one common test set. Published weights may have seen another configuration's test videos during training. Read the original-run notes below before comparing or re-scoring checkpoints.
+
+These are research detectors. A verdict or heatmap is insufficient evidence for an authenticity decision on an unfamiliar video.
+
+## Reproduce the study
+
+Training and the full tables need FaceForensics++ from [its authors](https://github.com/ondyari/FaceForensics) (research use only) and a GPU; a Colab T4 is enough.
+
+<details>
+<summary><b>Step by step</b></summary>
+
+1. Put the raw videos in one folder: real clips as `000.mp4, 001.mp4, ...`, fakes as `<Manipulation>/000_003.mp4`.
+2. Crop the faces (MTCNN, eye-aligned, 32 frames, 224×224):
+   ```bash
+   xdfdet crop raw/ faces/
+   ```
+3. Train one setting. The split is 70/15/15 over 1,000 real/fake pairs, one manipulation per pair in rotation:
+   ```bash
+   xdfdet train --data faces/ --config aug-cutout-black --out aug-cutout-black.keras
+   ```
+4. Score the test split, then run the region analysis:
+   ```bash
+   xdfdet evaluate --data faces/ --model aug-cutout-black.keras && xdfdet analyze --data faces/ --model aug-cutout-black.keras --out regions.json
+   ```
+
+`analyze` reports, for each outcome (TP, TN, FP, FN, with fake as the positive class), the mean and spread of Grad-CAM activation in the eight regions.
+
+Tests run on a CPU without the dataset: `pip install -e ".[test]" && pytest`. To redraw the figures: `python scripts/make_figures.py docs/figures`.
+
+</details>
+
+## Notes on the original runs
+
+The code was rebuilt from the Colab notebooks behind the paper and checked against them. Reading those notebooks surfaced details the paper does not state.
+
+<details>
+<summary><b>Read these before comparing numbers</b></summary>
+
+- **Splits.** Each notebook drew its own random 70/15/15 split with no fixed seed, so every configuration was tested on a different set of 150 pairs. A published checkpoint may have trained on videos that sit in another configuration's test set, so re-scoring the checkpoints on one common split would mix training and test data. This code seeds the split (`--seed 42`), so new runs are comparable.
+- **Dropout.** The paper gives 0.55 for every model. The released `aug-cutout-random` checkpoint was trained with 0.25. Dropout is off at inference, so this affects how the model was trained and not how you use it.
+- **Cutout-only models** kept Albumentations' `HorizontalFlip` at its default probability of 0.5, so they saw random flips.
+- **Missing checkpoint.** The `aug-standard` and `aug-intense` runs saved to the same file name, and the later save overwrote `aug-intense`. Its row comes from the paper; there are no weights for it.
+- **Jaw region.** The region masks are the landmark polygons filled as drawn. The jaw polygon (points 0 to 16) closes across the lower face, so its score overlaps the nose and mouth regions.
+- **Precision.** Training and the reported scores ran in mixed float16 on a T4 GPU. The released files are float32 copies with identical weights, and scores can differ from the float16 runs, most near the 0.5 boundary. `conversion.json` on Hugging Face lists both for two test images. To score in the original precision on a GPU, use `xdfdet evaluate --mixed-precision` or `xdfdet.load_model(name, mixed_precision=True)`.
+- **Loading the Colab checkpoints.** In Keras 3.10, `keras.models.load_model` on the original `.h5` files leaves EfficientNet's normalization layer inactive. The released models rebuild the architecture and copy the weights, which avoids this.
+- **Input scaling.** Frames are normalized with ImageNet statistics before the model, and Keras' EfficientNet normalizes again inside. The weights were trained this way, so keep both steps.
+- **Metrics.** F1 treats real as the positive class; the Grad-CAM outcomes treat fake as positive. Both follow the thesis.
+- **Crop margin.** The thesis says faces were cropped "with a fixed margin" without giving a value. `xdfdet crop` uses 30% of the face box.
+
+[`scripts/convert_checkpoints.py`](scripts/convert_checkpoints.py) shows how each Colab checkpoint was matched to its configuration and converted.
+
+</details>
+
+## Cite this
+
+```bibtex
+@mastersthesis{kaya2025xdfdet,
+  title  = {Explainable Deepfake Detection Using Frame Level CNN Models:
+            A Comparative Study of Augmentation and Cutout Techniques},
+  author = {Kaya, Mert},
+  school = {TED University},
+  year   = {2025},
+  doi    = {10.5281/zenodo.18998566}
+}
+
+@inproceedings{kaya2026augmentation,
+  title     = {Augmentation and Cutout in Deepfake Detection: A Comparative Study of
+               Accuracy, Calibration, and Attention},
+  author    = {Kaya, Mert and Adanova, Venera},
+  booktitle = {11th International Conference on Computer Science and Engineering (UBMK 2026)},
+  year      = {2026},
+  note      = {Accepted; to appear in IEEE Xplore}
+}
+```
+
+## License and links
+
+Code: [MIT](LICENSE). Model weights: CC BY-NC 4.0, under the non-commercial research terms of [FaceForensics++](https://github.com/ondyari/FaceForensics). Eight checkpoints are released; `aug-intense` is unavailable because its checkpoint was overwritten in the original runs.
+
+The FaceForensics++ frames in `docs/figures/thesis-*` come from the thesis (CC BY 4.0). The portrait used for package figures is a [Pexels photo](https://www.pexels.com/photo/close-photo-of-a-woman-in-hoodie-sweater-10349430/) under the Pexels license.
+
+- Project site: https://xdfdet.mertkayacs.com
+- Hugging Face: https://huggingface.co/mertkayacs/xdfdet
+- Kaggle: https://www.kaggle.com/models/mertilovski/xdfdet
+- Eschatia Labs: https://eschatialabs.com
+- Mert Kaya: https://mertkayacs.com
+
+This code accompanies Mert Kaya and Venera Adanova's UBMK 2026 paper, accepted and to appear in IEEE Xplore, and Mert Kaya's [MSc thesis](https://doi.org/10.5281/zenodo.18998566) at TED University. No paper DOI is available yet.
+
+<a href="https://eschatialabs.com"><picture><source media="(prefers-color-scheme: dark) and (min-resolution: 2dppx)" srcset="https://eschatialabs.com/brand/lockup-46-dark@2x.png"><source media="(prefers-color-scheme: dark)" srcset="https://eschatialabs.com/brand/lockup-46-dark@1x.png"><source media="(min-resolution: 2dppx)" srcset="https://eschatialabs.com/brand/lockup-46@2x.png"><img src="https://eschatialabs.com/brand/lockup-46@1x.png" width="124" height="46" alt="Eschatia Labs"></picture></a><br>An [Eschatia Labs](https://eschatialabs.com) project by [Mert Kaya](https://mertkayacs.com).

@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+.venv/
+.vercel/
+node_modules/
+build/
+dist/
+*.keras
+*.h5
+data/
+.env
+.env.*
+!.env.example
